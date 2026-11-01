@@ -1,26 +1,51 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "Cascadia Code", "SF Mono", Consolas, "Liberation Mono", monospace;
+
+  --color-ink: #0f1b2d;
+  --color-muted: #5b6678;
+  --color-faint: #8a94a6;
+  --color-line: #e3e7ee;
+  --color-canvas: #f5f7fa;
+  --color-surface: #ffffff;
+
+  --color-brand: #0b5d4b;
+  --color-brand-soft: #e6f2ee;
+  --color-brand-ink: #063b30;
+
+  --color-ok: #137a43;
+  --color-ok-soft: #e7f5ec;
+  --color-warn: #a35a00;
+  --color-warn-soft: #fdf3e2;
+  --color-bad: #b42318;
+  --color-bad-soft: #fdecea;
+  --color-info: #1d4ed8;
+  --color-info-soft: #e8efff;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+html,
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+::selection {
+  background: #cfe7df;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* AG Grid theme tweaks to match the app */
+.hf-grid {
+  --ag-font-family: var(--font-sans);
+  --ag-font-size: 13px;
+  --ag-header-background-color: #f8fafc;
+  --ag-row-hover-color: #f1f6f4;
+  --ag-selected-row-background-color: #e6f2ee;
+  --ag-border-color: #e3e7ee;
 }

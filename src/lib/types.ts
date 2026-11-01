@@ -46,6 +46,8 @@ export interface Order {
   refunded?: boolean;
   buyerMessages: { at: string; text: string }[];
   promisedShipDays: number;
+  /** True when this order is a real PayPal sandbox payment (not demo-only data). */
+  sandboxBacked?: boolean;
 }
 
 export type DisputeReason =
@@ -75,6 +77,8 @@ export interface Dispute {
   outcome?: "RESOLVED_SELLER_FAVOUR" | "RESOLVED_BUYER_FAVOUR" | "OFFER_ACCEPTED" | "ACCEPTED_CLAIM";
   evidenceSubmittedAt?: string;
   offer?: { amount: number; at: string };
+  /** True when this dispute exists in the PayPal sandbox. */
+  sandboxBacked?: boolean;
 }
 
 export type ApprovalKind =

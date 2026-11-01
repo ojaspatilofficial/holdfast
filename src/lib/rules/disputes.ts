@@ -86,12 +86,19 @@ export function triageDispute(d: Dispute, order: Order | undefined, now = Date.n
   }
 
   const amount = d.amount;
-  const offerAmount = Math.round(amount * 0.25);
+  const snad = d.reason === "MERCHANDISE_OR_SERVICE_NOT_AS_DESCRIBED";
+  const offerAmount = Math.round(amount * 0.2);
+  const ACCEPT_RATE = 0.7; // assumption: share of buyers who accept a fair partial offer
+  const RETURN_LABEL = 15;
   const options: OptionCost[] = [
     { action: "fight", label: "Fight with evidence", expectedCost: round((1 - p) * amount + DISPUTE_FEE), note: `${Math.round(p * 100)}% estimated win chance. Fee kept either way.` },
-    { action: "partial_offer", label: `Offer partial refund ($${offerAmount})`, expectedCost: round(offerAmount * 0.6 + (1 - 0.6) * ((1 - p) * amount) + DISPUTE_FEE), note: "Buyer keeps item; ~60% of buyers accept a fair partial offer (assumption).", offerAmount },
-    { action: "accept_claim", label: "Accept claim and refund", expectedCost: round(amount + DISPUTE_FEE + (d.reason === "MERCHANDISE_OR_SERVICE_NOT_AS_DESCRIBED" ? -amount * 0.7 : 0)), note: d.reason === "MERCHANDISE_OR_SERVICE_NOT_AS_DESCRIBED" ? "Buyer returns item; you resell it at ~70% value." : "Full refund, ends the case." },
   ];
+  if (snad) {
+    options.push({ action: "partial_offer", label: `Offer partial refund ($${offerAmount})`, expectedCost: round(offerAmount * ACCEPT_RATE + (1 - ACCEPT_RATE) * ((1 - p) * amount) + DISPUTE_FEE), note: `Buyer keeps the item. Assumes ~${Math.round(ACCEPT_RATE * 100)}% of buyers accept a fair offer.`, offerAmount });
+    options.push({ action: "accept_claim", label: "Accept return and refund", expectedCost: round(amount * 0.3 + RETURN_LABEL + DISPUTE_FEE), note: "Buyer returns the item; you resell it at ~70% of the price." });
+  } else {
+    options.push({ action: "accept_claim", label: "Accept claim and refund", expectedCost: round(amount + DISPUTE_FEE), note: "Full refund, ends the case." });
+  }
   const recommended = [...options].sort((a, b) => a.expectedCost - b.expectedCost)[0];
   return { covered, coverageReason, winProbability: p, hoursLeft, urgency, evidence, options, recommended };
 }
