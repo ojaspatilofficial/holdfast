@@ -54,10 +54,11 @@ export function Stat({ label, value, hint, tone }: { label: string; value: React
   );
 }
 
+/** Shows where a piece of text came from: Gemini, Gemini's saved answer, or the rules fallback. */
 export function SourceTag({ source, note }: { source: "gemini" | "cache" | "rules"; note?: string }) {
-  const label = source === "gemini" ? "Written by Gemini" : source === "cache" ? "Gemini (saved)" : "Rule-based";
+  const label = source === "gemini" ? "Written by Gemini" : source === "cache" ? "Gemini · saved" : "Rule-based";
   return (
-    <span className="inline-flex items-center gap-1.5 text-[11px] text-faint" title={note}>
+    <span className="inline-flex flex-wrap items-center gap-1.5 text-[11px] text-faint">
       <span className={`h-1.5 w-1.5 rounded-full ${source === "rules" ? "bg-faint" : "bg-brand"}`} />
       {label}
       {note && <span className="text-warn">· {note}</span>}
@@ -68,10 +69,6 @@ export function SourceTag({ source, note }: { source: "gemini" | "cache" | "rule
 /** "Label: detail" → just the detail, for places that already show the label. */
 export function issueText(topIssue?: string) {
   return topIssue ? topIssue.split(": ").slice(1).join(": ") || topIssue : "";
-}
-
-export function SimTag() {
-  return <Badge tone="warn">Simulated</Badge>;
 }
 
 export const money = (n: number, cur = "USD") => new Intl.NumberFormat("en-US", { style: "currency", currency: cur, maximumFractionDigits: n % 1 ? 2 : 0 }).format(n);

@@ -46,7 +46,7 @@ Code: [`src/lib/paypal/client.ts`](src/lib/paypal/client.ts), [`actions.ts`](src
 
 ## AI used
 
-**Google Gemini** (`gemini-flash-latest` by default, on the free tier) through the official `@google/genai` SDK.
+**Google Gemini** (`gemini-flash-lite-latest` by default: fast and on the free tier; set `GEMINI_MODEL` to change it) through the official `@google/genai` SDK.
 
 - **Structured output** (`responseJsonSchema` built from zod schemas) for:
   - order explanations and buyer-message signals

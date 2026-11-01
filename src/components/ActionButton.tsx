@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
+import { messageOf, postJson } from "@/lib/http";
 
 export type Variant = "primary" | "secondary" | "ghost" | "danger";
 
@@ -40,11 +41,9 @@ export function ActionButton({
     setBusy(true);
     setMsg(null);
     try {
-      const res = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body ?? {}) });
-      const data = await res.json().catch(() => ({}));
-      const text = (data as { message?: string; error?: string }).message ?? (data as { error?: string }).error ?? (res.ok ? "Done." : "Something went wrong.");
-      setMsg({ ok: res.ok && (data as { ok?: boolean }).ok !== false, text });
-      onDone?.(data);
+      const r = await postJson<{ ok?: boolean }>(endpoint, body);
+      setMsg({ ok: r.ok && r.data.ok !== false, text: messageOf(r.data, r.ok ? "Done." : "Something went wrong.") });
+      onDone?.(r.data);
       router.refresh();
     } catch (e) {
       setMsg({ ok: false, text: (e as Error).message });

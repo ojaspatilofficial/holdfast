@@ -114,7 +114,7 @@ export function buildDemoDb(now = Date.now()): DB {
 
   // 1. High-value lens, label printed without signature, tracking never sent to PayPal, funds held.
   const lensTo = addr("Daniel Okafor");
-  const lens = special({
+  special({
     buyerName: "Daniel Okafor", daysAgo: 2.2, shipTo: lensTo,
     items: [{ name: "Sony 24-70mm f/2.8 GM lens (used, mint)", quantity: 1, unitAmount: 924, kind: "physical" }],
     shipment: { carrier: "UPS", trackingNumber: "1Z999AA10123456784", labelAddress: { ...lensTo }, signatureRequired: false, shippedAt: iso(now - 1.1 * DAY), lastScan: "Departed facility, Louisville KY" },
@@ -246,7 +246,6 @@ export function buildDemoDb(now = Date.now()): DB {
     }),
   ];
 
-  void lens;
   orders.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
   return {

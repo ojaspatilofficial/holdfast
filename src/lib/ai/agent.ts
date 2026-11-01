@@ -7,7 +7,10 @@ import { checkOrder, VERDICT_LABEL } from "../rules/protection";
 import { REASON_LABEL, triageDispute } from "../rules/disputes";
 import { computeHealth } from "../rules/health";
 import { createApproval } from "../paypal/actions";
-import { aiConfigured, aiGap, GEMINI_MODEL, genai, SYSTEM_BASE } from "./gemini";
+import { aiConfigured, fallbackNote, geminiCall, SYSTEM_BASE } from "./gemini";
+
+const AGENT_DEADLINE_MS = 100_000; // stay inside the API route's 120s limit
+const MAX_STEPS = 8;
 
 export interface AgentStep {
   kind: "tool" | "proposal" | "final" | "note";
@@ -134,8 +137,8 @@ function runTool(name: string, args: Record<string, unknown>, created: Approval[
 
 const AGENT_SYSTEM = `${SYSTEM_BASE}
 You are running as an agent with tools. Work step by step: read data with the get/list tools, then use propose_* tools for any action. You cannot move money yourself; proposals wait for the seller's approval, so say that.
-Only propose actions the data supports: tracking pushes only for shipped orders whose tracking isn't on PayPal; evidence only for covered disputes or ones with delivery proof; partial offers for not-as-described claims when the rules engine recommends it.
-Finish with a short answer (max 120 words) that lists what you found and what is waiting for approval.`;
+Only propose actions the data supports: tracking pushes only for shipped orders whose tracking isn't on PayPal. For each open dispute, follow the rules engine's "recommended" option: "Fight with evidence" → propose_evidence; a partial refund → propose_offer with that amount; "Accept" → don't propose, tell the seller to review it.
+Finish with a short answer in plain text (no markdown, no asterisks, max 120 words) that lists what you found and what is waiting for approval.`;
 
 export async function runAgent(goal: string): Promise<AgentRun> {
   const created: Approval[] = [];
@@ -143,19 +146,20 @@ export async function runAgent(goal: string): Promise<AgentRun> {
   if (!aiConfigured()) return rulePlanner(goal, "AI is off (no GEMINI_API_KEY). The rule-based planner ran instead.");
 
   const contents: Content[] = [{ role: "user", parts: [{ text: goal }] }];
+  const started = Date.now();
   try {
-    for (let i = 0; i < 8; i++) {
-      await aiGap();
-      const res = await genai().models.generateContent({
-        model: GEMINI_MODEL,
-        contents,
-        config: { systemInstruction: AGENT_SYSTEM, tools: [{ functionDeclarations: tools }] },
-      });
+    for (let i = 0; i < MAX_STEPS; i++) {
+      const left = AGENT_DEADLINE_MS - (Date.now() - started);
+      if (left < 8_000) break;
+      const res = await geminiCall(
+        { contents, config: { systemInstruction: AGENT_SYSTEM, tools: [{ functionDeclarations: tools }] } },
+        Math.min(left, 45_000),
+      );
       const turn = res.candidates?.[0]?.content;
       if (turn) contents.push(turn);
       const calls = res.functionCalls ?? [];
       if (!calls.length) {
-        const answer = res.text ?? "Done.";
+        const answer = (res.text ?? "Done.").replace(/\*\*(.+?)\*\*/g, "$1").replace(/^\s*[-*]\s+/gm, "• ").trim();
         steps.push({ kind: "final", title: "Summary", detail: answer });
         return { goal, source: "gemini", steps, answer, approvals: created };
       }
@@ -167,16 +171,21 @@ export async function runAgent(goal: string): Promise<AgentRun> {
       }
       contents.push({ role: "user", parts });
     }
-    const answer = "I reached my step limit. Here's what I prepared so far; check the approvals queue.";
+    const answer = created.length
+      ? `I ran out of time or steps. I prepared ${created.length} action(s); they're waiting for your approval below.`
+      : "I ran out of time before finishing. Try a narrower request, e.g. “Release my held money”.";
     steps.push({ kind: "final", title: "Summary", detail: answer });
     return { goal, source: "gemini", steps, answer, approvals: created };
   } catch (err) {
-    const msg = (err as Error).message ?? "";
-    const busy = /429|quota|RESOURCE_EXHAUSTED/i.test(msg);
-    console.warn("[holdfast] agent failed:", msg.slice(0, 300));
-    const fallback = rulePlanner(goal, busy ? "Gemini free-tier limit reached mid-run; the rule-based planner finished the job." : "Gemini call failed; the rule-based planner finished the job.");
-    return { ...fallback, steps: [...steps, ...fallback.steps], approvals: [...created, ...fallback.approvals] };
+    // Finish the job deterministically. Proposals already created stay; duplicates are skipped.
+    const fallback = rulePlanner(goal, `${fallbackNote(err).replace("showing rule-based text", "the rule-based planner finished the job")}`);
+    return { ...fallback, steps: [...steps, ...fallback.steps], approvals: dedupe([...created, ...fallback.approvals]) };
   }
+}
+
+function dedupe(list: Approval[]) {
+  const seen = new Set<string>();
+  return list.filter((a) => (seen.has(a.id) ? false : (seen.add(a.id), true)));
 }
 
 /** Deterministic planner used when Gemini is unavailable. Same tools, same approval gates. */

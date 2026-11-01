@@ -130,11 +130,11 @@ export async function executeApproval(approval: Approval): Promise<ActionResult>
 }
 
 export function createApproval(a: Omit<Approval, "id" | "createdAt" | "status">): Approval {
+  // Same pending action already queued? Return that one instead of stacking a duplicate.
+  const dup = getDb().approvals.find((x) => x.status === "pending" && x.kind === a.kind && JSON.stringify(x.payload) === JSON.stringify(a.payload));
+  if (dup) return dup;
   const approval: Approval = { ...a, id: newId("ap"), createdAt: new Date().toISOString(), status: "pending" };
   mutate((db) => {
-    // Don't stack duplicates of the same pending action.
-    const dup = db.approvals.find((x) => x.status === "pending" && x.kind === a.kind && JSON.stringify(x.payload) === JSON.stringify(a.payload));
-    if (dup) return;
     db.approvals.unshift(approval);
   });
   audit({ actor: a.createdBy === "agent" ? "agent" : "seller", action: "Approval requested", detail: `${a.title}: ${a.summary}` });
@@ -145,6 +145,10 @@ export async function decideApproval(id: string, decision: "approve" | "reject")
   const approval = getDb().approvals.find((a) => a.id === id);
   if (!approval) return { ok: false, message: "Approval not found.", traces: [] };
   if (approval.status !== "pending") return { ok: false, message: `Already ${approval.status}.`, traces: [], approval };
+  // Lock before any await so a double-click can't send the same action to PayPal twice.
+  mutate((db) => {
+    db.approvals.find((x) => x.id === id)!.status = decision === "approve" ? "approved" : "rejected";
+  });
   if (decision === "reject") {
     mutate((db) => {
       const a = db.approvals.find((x) => x.id === id)!;
