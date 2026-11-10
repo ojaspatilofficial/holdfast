@@ -199,7 +199,6 @@ export async function settleDispute(id: string, outcome: "SELLER_FAVOR" | "BUYER
 
 /** Demo mode: behave like a CUSTOMER.DISPUTE.CREATED webhook for a recent delivered order. */
 export function simulateIncomingDispute(): Dispute | undefined {
-  if (paypalConfigured()) return undefined;
   const db = getDb();
   const disputed = new Set(db.disputes.map((d) => d.orderId));
   const candidate = db.orders.find((o) => o.shipment?.deliveredAt && !disputed.has(o.id) && o.trackingPushedToPayPal && o.amount > 60);

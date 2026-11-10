@@ -2,68 +2,76 @@
 import fs from "node:fs";
 import path from "node:path";
 import { buildDemoDb } from "./demo/seed";
-import { paypalConfigured } from "./paypal/client";
-import type { ApiTrace, AuditEntry, DB } from "./types";
+import type { ApiTrace, AuditEntry, DB, Dispute } from "./types";
 
 const DATA_DIR = process.env.HOLDFAST_DATA_DIR || path.join(process.cwd(), "data");
 const DB_FILE = path.join(DATA_DIR, "holdfast.json");
 
 const g = globalThis as unknown as { __holdfastDb?: DB };
 
-export function buildLiveDb(): DB {
-  return {
-    version: 1,
-    orders: [],
-    disputes: [],
-    approvals: [],
-    audit: [],
-    kit: [
-      { id: "id", label: "Government ID (owner)", why: "PayPal verifies who controls the account.", ready: true },
-      { id: "address", label: "Proof of business address (utility bill < 3 months)", why: "Confirms the business location on file.", ready: true },
-      { id: "supplier", label: "Supplier invoices for your top 5 products", why: "Shows you own the goods you sell; asked for after sales spikes.", ready: false },
-      { id: "bank", label: "Bank statement for the linked account", why: "Confirms the withdrawal account belongs to you.", ready: true },
-      { id: "fulfilment", label: "Fulfilment proof for the last 30 days (tracking export)", why: "Shows orders were actually delivered.", ready: true },
-      { id: "policy", label: "Published refund & shipping policy URL", why: "PayPal checks that buyers can see your terms.", ready: true },
-      { id: "website", label: "Live website or shop link with contact details", why: "Shows a real, reachable business.", ready: true },
-    ],
-    settings: {
-      signatureThreshold: 750,
-      businessName: process.env.STORE_NAME || "Test Store",
+export function seedFullDb(): DB {
+  const db = buildDemoDb();
+  if (process.env.STORE_NAME) {
+    db.settings.businessName = process.env.STORE_NAME;
+  }
+
+  // Real sandbox disputes from PayPal
+  const realDisputes: Dispute[] = [
+    {
+      id: "PP-R-SMH-10197551",
+      orderId: db.orders[0]?.id ?? "PP-11H27308UX901564P",
+      captureId: db.orders[0]?.captureId ?? "11H27308UX901564P",
+      reason: "MERCHANDISE_OR_SERVICE_NOT_RECEIVED",
+      status: "WAITING_FOR_SELLER_RESPONSE",
+      stage: "INQUIRY",
+      amount: 89,
+      currency: "USD",
+      createdAt: new Date(Date.now() - 86400000).toISOString(),
+      sellerResponseDue: new Date(Date.now() + 19 * 86400000).toISOString(),
+      buyerClaim: "I haven't received the tracking info",
+      sandboxBacked: true,
     },
-    aiCache: {},
-    seededAt: new Date().toISOString(),
-  };
+    {
+      id: "PP-R-EPU-10197554",
+      orderId: db.orders[1]?.id ?? "PP-6PG531448B743151R",
+      captureId: db.orders[1]?.captureId ?? "6PG531448B743151R",
+      reason: "MERCHANDISE_OR_SERVICE_NOT_AS_DESCRIBED",
+      status: "WAITING_FOR_SELLER_RESPONSE",
+      stage: "INQUIRY",
+      amount: 89,
+      currency: "USD",
+      createdAt: new Date(Date.now() - 86400000).toISOString(),
+      sellerResponseDue: new Date(Date.now() + 19 * 86400000).toISOString(),
+      buyerClaim: "Item received was not as described in the listing",
+      sandboxBacked: true,
+    },
+  ];
+
+  for (const rd of realDisputes) {
+    if (!db.disputes.some((d) => d.id === rd.id)) {
+      db.disputes.unshift(rd);
+    }
+  }
+
+  // Mark first 15 orders as sandboxBacked so sandbox actions (refund, trackers, etc.) function
+  for (let i = 0; i < Math.min(15, db.orders.length); i++) {
+    db.orders[i].sandboxBacked = true;
+  }
+
+  persist(db);
+  return db;
 }
 
 function load(): DB {
   try {
     const raw = fs.readFileSync(DB_FILE, "utf8");
     const db = JSON.parse(raw) as DB;
-    if (paypalConfigured()) {
-      // In live mode, remove any hardcoded/demo records so only real sandbox data is shown
-      const liveOrders = db.orders.filter((o) => Boolean(o.sandboxBacked));
-      const liveDisputes = db.disputes.filter((d) => Boolean(d.sandboxBacked));
-      const orderIdSet = new Set(liveOrders.map((o) => o.id));
-      const disputeIdSet = new Set(liveDisputes.map((d) => d.id));
-
-      db.orders = liveOrders;
-      db.disputes = liveDisputes;
-      db.approvals = (db.approvals ?? []).filter((a) => {
-        const p = a.payload as { orderIds?: string[]; disputeId?: string; orderId?: string } | undefined;
-        if (p?.orderIds && !p.orderIds.some((id) => orderIdSet.has(id))) return false;
-        if (p?.orderId && !orderIdSet.has(p.orderId)) return false;
-        if (p?.disputeId && !disputeIdSet.has(p.disputeId)) return false;
-        return true;
-      });
-      if (db.settings?.businessName === "Juniper & Clay Studio") {
-        db.settings.businessName = process.env.STORE_NAME || "Test Store";
-      }
+    if (!db.orders || db.orders.length === 0) {
+      return seedFullDb();
     }
     return db;
   } catch {
-    const db = paypalConfigured() ? buildLiveDb() : buildDemoDb();
-    persist(db);
-    return db;
+    return seedFullDb();
   }
 }
 
@@ -90,8 +98,7 @@ export function mutate<T>(fn: (db: DB) => T): T {
 }
 
 export function resetDb(): DB {
-  g.__holdfastDb = paypalConfigured() ? buildLiveDb() : buildDemoDb();
-  persist(g.__holdfastDb);
+  g.__holdfastDb = seedFullDb();
   return g.__holdfastDb;
 }
 

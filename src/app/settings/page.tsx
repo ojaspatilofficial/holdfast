@@ -33,34 +33,24 @@ export default function SettingsPage() {
           {live && <div className="mt-4"><ActionButton endpoint="/api/paypal/sync" variant="primary">Sync transactions & disputes from PayPal</ActionButton></div>}
         </Card>
 
-        {live ? (
-          <Card title="Live Store & Sandbox Data">
-            <p className="mb-3 text-sm text-muted">Running with active PayPal sandbox credentials. Showing live sandbox records only.</p>
-            <dl className="grid grid-cols-2 gap-2 text-sm">
-              <dt className="text-muted">Business name</dt><dd className="font-medium">{db.settings.businessName}</dd>
-              <dt className="text-muted">Signature threshold</dt><dd>${db.settings.signatureThreshold}</dd>
-              <dt className="text-muted">Sandbox orders</dt><dd className="num font-semibold">{db.orders.length}</dd>
-              <dt className="text-muted">Sandbox disputes</dt><dd className="num font-semibold">{db.disputes.length}</dd>
-            </dl>
-            <div className="mt-4">
+        <Card title="Demo & Test controls">
+          <p className="mb-3 text-sm text-muted">Demo data is realistic and dynamically calculated relative to today. Resetting refreshes deadlines, approvals, and metrics.</p>
+          <div className="flex flex-wrap gap-2">
+            <ActionButton endpoint="/api/demo" body={{ action: "reset" }} variant="danger" confirm="Reset all demo data?">Reset demo data</ActionButton>
+            <ActionButton endpoint="/api/demo" body={{ action: "simulate_dispute" }}>Simulate incoming dispute</ActionButton>
+          </div>
+          <dl className="mt-4 grid grid-cols-2 gap-2 text-sm">
+            <dt className="text-muted">Business</dt><dd className="font-medium">{db.settings.businessName}</dd>
+            <dt className="text-muted">Signature threshold</dt><dd>${db.settings.signatureThreshold}</dd>
+            <dt className="text-muted">Total orders</dt><dd className="num font-semibold">{db.orders.length}</dd>
+            <dt className="text-muted">Total disputes</dt><dd className="num font-semibold">{db.disputes.length}</dd>
+          </dl>
+          {live && (
+            <div className="mt-4 border-t border-line pt-3">
               <ActionButton endpoint="/api/paypal/sync" variant="primary">Sync live data from PayPal</ActionButton>
             </div>
-          </Card>
-        ) : (
-          <Card title="Demo controls">
-            <p className="mb-3 text-sm text-muted">Demo data is fictional and rebuilt relative to today, so deadlines stay live. Resetting clears approvals and the activity log.</p>
-            <div className="flex flex-wrap gap-2">
-              <ActionButton endpoint="/api/demo" body={{ action: "reset" }} variant="danger" confirm="Reset all demo data?">Reset demo data</ActionButton>
-              <ActionButton endpoint="/api/demo" body={{ action: "simulate_dispute" }}>Simulate incoming dispute</ActionButton>
-            </div>
-            <dl className="mt-4 grid grid-cols-2 gap-2 text-sm">
-              <dt className="text-muted">Business</dt><dd>{db.settings.businessName}</dd>
-              <dt className="text-muted">Signature threshold</dt><dd>${db.settings.signatureThreshold}</dd>
-              <dt className="text-muted">Orders</dt><dd className="num">{db.orders.length}</dd>
-              <dt className="text-muted">Disputes</dt><dd className="num">{db.disputes.length}</dd>
-            </dl>
-          </Card>
-        )}
+          )}
+        </Card>
 
         {live && (
           <Card title="Sandbox setup" className="lg:col-span-2">
