@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import { simulateIncomingDispute } from "@/lib/paypal/actions";
+import { paypalConfigured } from "@/lib/paypal/client";
 import { resetDb } from "@/lib/store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
+  if (paypalConfigured()) {
+    return NextResponse.json({ error: "Demo simulation is disabled while PayPal live sandbox is connected to prevent modifying real sandbox data." }, { status: 403 });
+  }
   const { action } = (await req.json().catch(() => ({}))) as { action?: string };
   if (action === "reset") {
     const db = resetDb();

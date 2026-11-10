@@ -155,6 +155,7 @@ interface CapturedOrder extends CreatedOrder {
 }
 
 export async function captureTestCheckout(orderId: string) {
+  if (!paypalConfigured()) throw new Error("PayPal sandbox credentials are not configured.");
   const res = await PayPal.captureOrder(orderId);
   const o = res.data as unknown as CapturedOrder;
   const pu = o.purchase_units?.[0];

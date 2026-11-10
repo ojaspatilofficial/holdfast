@@ -49,9 +49,11 @@ export function computeHealth(db: DB, now = Date.now()): Health {
   const held = db.orders.filter((o) => o.hold.status === "held");
   const heldTotal = held.reduce((s, o) => s + o.amount, 0);
   const atRiskCount = db.orders.filter((o) => now - Date.parse(o.createdAt) <= 30 * DAY && checkOrder(o, db.settings, now).verdict === "at_risk").length;
-  const dueSoonCount = db.disputes.filter(
+  const dueSoonDisputes = db.disputes.filter(
     (d) => d.status === "WAITING_FOR_SELLER_RESPONSE" && Date.parse(d.sellerResponseDue) - now < 72 * 3600_000,
-  ).length;
+  );
+  const overdueCount = dueSoonDisputes.filter((d) => Date.parse(d.sellerResponseDue) < now).length;
+  const dueSoonCount = dueSoonDisputes.length;
 
   const factors: HealthFactor[] = [
     {
@@ -75,9 +77,9 @@ export function computeHealth(db: DB, now = Date.now()): Health {
       detail: `${held.length} payments held.`,
     },
     {
-      id: "deadlines", label: "Dispute deadlines < 72h", value: String(dueSoonCount),
+      id: "deadlines", label: overdueCount > 0 ? "Disputes overdue / < 72h" : "Dispute deadlines < 72h", value: String(dueSoonCount),
       level: dueSoonCount > 0 ? "bad" : "ok",
-      detail: "Unanswered disputes close in the buyer's favour after the response window.",
+      detail: overdueCount > 0 ? `${overdueCount} dispute(s) overdue! Unanswered disputes close in the buyer's favour.` : "Unanswered disputes close in the buyer's favour after the response window.",
     },
   ];
 

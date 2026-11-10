@@ -106,7 +106,12 @@ export function checkOrder(order: Order, settings: Settings, now = Date.now()): 
   } else if (!shipped) {
     checks.push({ id: "ontime", label: "Shipped on time", state: "pending", detail: `${Math.max(0, order.promisedShipDays - ageDays).toFixed(1)} days left in your ship window.` });
   } else {
-    checks.push({ id: "ontime", label: "Shipped on time", state: "pass", detail: "Shipped within the promised window." });
+    const shipDays = s?.shippedAt ? (Date.parse(s.shippedAt) - Date.parse(order.createdAt)) / DAY : 0;
+    if (shipDays > order.promisedShipDays) {
+      checks.push({ id: "ontime", label: "Shipped on time", state: "warn", detail: `Shipped ${shipDays.toFixed(1)} days after payment (promised window: ${order.promisedShipDays}d). Late shipment increases dispute risk.` });
+    } else {
+      checks.push({ id: "ontime", label: "Shipped on time", state: "pass", detail: "Shipped within the promised window." });
+    }
   }
 
   // 7. Buyer signals.

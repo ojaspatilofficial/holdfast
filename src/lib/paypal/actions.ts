@@ -45,6 +45,7 @@ export async function executeApproval(approval: Approval): Promise<ActionResult>
           }
         }
         const now = Date.now();
+        let released = 0;
         mutate((d) => {
           for (const o of d.orders) {
             if (!orderIds.includes(o.id)) continue;
@@ -52,13 +53,13 @@ export async function executeApproval(approval: Approval): Promise<ActionResult>
             if (o.hold.status === "held") {
               if (o.shipment?.deliveredAt) {
                 o.hold = { ...o.hold, status: "released", releaseEta: new Date(now).toISOString(), reason: "Released: tracking + delivery confirmed" };
+                released += o.amount;
               } else {
                 o.hold = { ...o.hold, releaseEta: new Date(now + 2 * DAY).toISOString(), reason: "Releases on delivery scan (tracking now on file)" };
               }
             }
           }
         });
-        const released = orders.filter((o) => o.shipment?.deliveredAt && o.hold.status !== "none").reduce((s, o) => s + o.amount, 0);
         return { ok: true, message: `Tracking sent for ${orders.length} order(s).${released ? ` $${released.toFixed(0)} released on delivery proof.` : ""}`, traces };
       }
 
@@ -198,6 +199,7 @@ export async function settleDispute(id: string, outcome: "SELLER_FAVOR" | "BUYER
 
 /** Demo mode: behave like a CUSTOMER.DISPUTE.CREATED webhook for a recent delivered order. */
 export function simulateIncomingDispute(): Dispute | undefined {
+  if (paypalConfigured()) return undefined;
   const db = getDb();
   const disputed = new Set(db.disputes.map((d) => d.orderId));
   const candidate = db.orders.find((o) => o.shipment?.deliveredAt && !disputed.has(o.id) && o.trackingPushedToPayPal && o.amount > 60);
@@ -288,6 +290,8 @@ export async function syncFromPayPal(): Promise<ActionResult> {
   const traces: ApiTrace[] = [];
   let txCount = 0;
   let dCount = 0;
+  let txError = "";
+  let dError = "";
   try {
     const end = new Date();
     const start = new Date(end.getTime() - 30 * DAY);
@@ -297,6 +301,7 @@ export async function syncFromPayPal(): Promise<ActionResult> {
   } catch (err) {
     const t = (err as PayPalError & { trace?: ApiTrace }).trace;
     if (t) traces.push(t);
+    txError = (err as Error).message;
   }
   try {
     const list = await PayPal.listDisputes();
@@ -309,7 +314,12 @@ export async function syncFromPayPal(): Promise<ActionResult> {
   } catch (err) {
     const t = (err as PayPalError & { trace?: ApiTrace }).trace;
     if (t) traces.push(t);
+    dError = (err as Error).message;
   }
   for (const t of traces) audit({ actor: "system", action: "PayPal sync", detail: `${t.method} ${t.path.split("?")[0]} → ${t.status}`, trace: t });
-  return { ok: true, message: `Synced ${txCount} new transactions and ${dCount} disputes from the PayPal sandbox.`, traces };
+  if (txError && dError) {
+    return { ok: false, message: `Sync failed: ${txError} | ${dError}`, traces };
+  }
+  const notes = [txError && `Transaction search: ${txError}`, dError && `Disputes: ${dError}`].filter(Boolean).join("; ");
+  return { ok: true, message: `Synced ${txCount} new transactions and ${dCount} disputes from the PayPal sandbox.${notes ? ` (${notes})` : ""}`, traces };
 }

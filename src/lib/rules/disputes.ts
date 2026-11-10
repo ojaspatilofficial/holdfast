@@ -59,10 +59,14 @@ export function triageDispute(d: Dispute, order: Order | undefined, now = Date.n
           : "Not covered: tracking isn't on the PayPal transaction.";
     p = covered ? (signed ? 0.92 : 0.82) : delivered ? 0.45 : 0.22;
   } else if (d.reason === "UNAUTHORISED") {
-    covered = physical && delivered && addressMatch;
+    covered = physical && delivered && addressMatch && tracked;
     coverageReason = covered
-      ? "Covered: delivered to the transaction address; Seller Protection covers unauthorized-payment claims."
-      : "Not covered: needs proof of shipment to the transaction address.";
+      ? "Covered: delivered to the transaction address with tracking on PayPal; Seller Protection covers unauthorized-payment claims."
+      : !tracked
+        ? "Not covered: tracking isn't on the PayPal transaction. Proof of shipment is required for unauthorized-payment claims."
+        : !delivered
+          ? "Not covered: needs proof of delivery or shipment to the transaction address."
+          : "Not covered: shipped to an address other than the transaction address.";
     p = covered ? (signed ? 0.9 : 0.78) : 0.25;
   } else {
     covered = false;

@@ -8,7 +8,8 @@ export const dynamic = "force-dynamic";
 // Holdfast records them). These never call PayPal.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { action } = (await req.json().catch(() => ({}))) as { action?: string };
+  const body = (await req.json().catch(() => ({}))) as { action?: string; trackingNumber?: string; carrier?: string };
+  const action = body.action;
   const order = getDb().orders.find((o) => o.id === id);
   if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
 
@@ -16,18 +17,26 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   mutate((db) => {
     const o = db.orders.find((x) => x.id === id)!;
     if (action === "fix_address") {
-      o.shipment = { carrier: o.shipment?.carrier ?? "USPS", trackingNumber: o.shipment?.trackingNumber ?? "", signatureRequired: o.shipment?.signatureRequired ?? false, shippedAt: o.shipment?.shippedAt ?? "", labelAddress: { ...o.shipTo }, deliveredAt: o.shipment?.deliveredAt, lastScan: o.shipment?.lastScan };
+      o.shipment = { carrier: (body.carrier as any) ?? o.shipment?.carrier ?? "USPS", trackingNumber: body.trackingNumber ?? o.shipment?.trackingNumber ?? "", signatureRequired: o.shipment?.signatureRequired ?? false, shippedAt: o.shipment?.shippedAt ?? "", labelAddress: { ...o.shipTo }, deliveredAt: o.shipment?.deliveredAt, lastScan: o.shipment?.lastScan };
       message = "Label now goes to the address on the PayPal transaction.";
     } else if (action === "require_signature") {
       if (o.shipment) o.shipment.signatureRequired = true;
-      else o.shipment = { carrier: "UPS", trackingNumber: "", signatureRequired: true, shippedAt: "", labelAddress: { ...o.shipTo } };
+      else o.shipment = { carrier: (body.carrier as any) ?? "UPS", trackingNumber: body.trackingNumber ?? "", signatureRequired: true, shippedAt: "", labelAddress: { ...o.shipTo } };
       message = "Signature confirmation added to the label.";
     } else if (action === "use_tracked_carrier") {
-      if (o.shipment) o.shipment.carrier = o.shipTo.country === "US" ? "USPS" : "DHL";
+      if (o.shipment) o.shipment.carrier = (body.carrier as any) ?? (o.shipTo.country === "US" ? "USPS" : "DHL");
       message = "Switched to a tracked service with a delivery scan.";
     } else if (action === "ship_now") {
       const label = o.shipment?.labelAddress ?? { ...o.shipTo };
-      o.shipment = { carrier: o.shipment?.carrier && o.shipment.carrier !== "OTHER" ? o.shipment.carrier : "USPS", trackingNumber: `9400${Date.now().toString().slice(-12)}`, labelAddress: label, signatureRequired: o.shipment?.signatureRequired ?? false, shippedAt: new Date().toISOString(), lastScan: "Label created, accepted at origin" };
+      const trackingNumber = body.trackingNumber || o.shipment?.trackingNumber || (o.sandboxBacked ? `TRACK-${Date.now().toString().slice(-8)}` : `9400${Date.now().toString().slice(-12)}`);
+      o.shipment = {
+        carrier: (body.carrier as any) || (o.shipment?.carrier && o.shipment.carrier !== "OTHER" ? o.shipment.carrier : "USPS"),
+        trackingNumber,
+        labelAddress: label,
+        signatureRequired: o.shipment?.signatureRequired ?? false,
+        shippedAt: new Date().toISOString(),
+        lastScan: "Label created, accepted at origin",
+      };
       message = "Marked shipped. Next: send the tracking to PayPal.";
     } else {
       message = "";

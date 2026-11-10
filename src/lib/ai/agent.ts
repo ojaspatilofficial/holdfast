@@ -192,7 +192,7 @@ function dedupe(list: Approval[]) {
 function rulePlanner(goal: string, note: string): AgentRun {
   const created: Approval[] = [];
   const steps: AgentStep[] = [];
-  const wantHolds = /hold|held|release|tracking|cash|money/i.test(goal);
+  const wantHolds = /hold|held|release|tracking|cash|money|push|untracked/i.test(goal);
   const wantDisputes = /dispute|case|claim|chargeback/i.test(goal);
   const both = !wantHolds && !wantDisputes;
   const lines: string[] = [];
@@ -216,10 +216,10 @@ function rulePlanner(goal: string, note: string): AgentRun {
       steps.push(g.step);
       const t = (g.result as { triage: ReturnType<typeof triageDispute>; dispute: { amount: number } }).triage;
       if (d.evidenceSubmitted) continue;
-      if (t.recommended.action === "fight" && t.covered) {
+      if (t.recommended.action === "fight") {
         const p = runTool("propose_evidence", { disputeId: d.disputeId, notes: `Shipped with tracking to the address on the PayPal transaction; carrier confirms delivery. Tracking is attached to the transaction. ${t.coverageReason}` }, created);
         steps.push(p.step);
-        lines.push(`${d.disputeId}: covered, evidence drafted for approval.`);
+        lines.push(`${d.disputeId}: ${t.covered ? "covered" : "uncovered"}, evidence drafted for approval.`);
       } else if (t.recommended.action === "partial_offer") {
         const p = runTool("propose_offer", { disputeId: d.disputeId, amount: t.recommended.offerAmount, note: "Sorry this wasn't what you expected. We'd like to offer a partial refund so you can keep the item." }, created);
         steps.push(p.step);
