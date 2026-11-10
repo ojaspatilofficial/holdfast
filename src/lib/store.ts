@@ -12,25 +12,25 @@ const g = globalThis as unknown as { __holdfastDb?: DB };
 
 export function buildLiveDb(): DB {
   return {
+    version: 1,
     orders: [],
     disputes: [],
     approvals: [],
     audit: [],
     kit: [
-      { id: "id", label: "Government-issued photo ID", ready: true },
-      { id: "address", label: "Proof of business address (utility bill / lease)", ready: true },
-      { id: "supplier", label: "Supplier invoices / proof of inventory", ready: false },
-      { id: "bank", label: "Bank account statement matching PayPal name", ready: true },
-      { id: "fulfilment", label: "Proof of fulfilment policy & tracked carrier", ready: true },
-      { id: "policy", label: "Published refund & return policy", ready: true },
-      { id: "website", label: "Live shop URL with contact details & terms", ready: true },
+      { id: "id", label: "Government ID (owner)", why: "PayPal verifies who controls the account.", ready: true },
+      { id: "address", label: "Proof of business address (utility bill < 3 months)", why: "Confirms the business location on file.", ready: true },
+      { id: "supplier", label: "Supplier invoices for your top 5 products", why: "Shows you own the goods you sell; asked for after sales spikes.", ready: false },
+      { id: "bank", label: "Bank statement for the linked account", why: "Confirms the withdrawal account belongs to you.", ready: true },
+      { id: "fulfilment", label: "Fulfilment proof for the last 30 days (tracking export)", why: "Shows orders were actually delivered.", ready: true },
+      { id: "policy", label: "Published refund & shipping policy URL", why: "PayPal checks that buyers can see your terms.", ready: true },
+      { id: "website", label: "Live website or shop link with contact details", why: "Shows a real, reachable business.", ready: true },
     ],
     settings: {
-      businessName: process.env.STORE_NAME || "Test Store",
       signatureThreshold: 750,
-      defaultCarrier: "USPS",
-      shipWindowDays: 3,
+      businessName: process.env.STORE_NAME || "Test Store",
     },
+    aiCache: {},
     seededAt: new Date().toISOString(),
   };
 }

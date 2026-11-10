@@ -17,20 +17,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   mutate((db) => {
     const o = db.orders.find((x) => x.id === id)!;
     if (action === "fix_address") {
-      o.shipment = { carrier: (body.carrier as any) ?? o.shipment?.carrier ?? "USPS", trackingNumber: body.trackingNumber ?? o.shipment?.trackingNumber ?? "", signatureRequired: o.shipment?.signatureRequired ?? false, shippedAt: o.shipment?.shippedAt ?? "", labelAddress: { ...o.shipTo }, deliveredAt: o.shipment?.deliveredAt, lastScan: o.shipment?.lastScan };
+      o.shipment = { carrier: body.carrier ?? o.shipment?.carrier ?? "USPS", trackingNumber: body.trackingNumber ?? o.shipment?.trackingNumber ?? "", signatureRequired: o.shipment?.signatureRequired ?? false, shippedAt: o.shipment?.shippedAt ?? "", labelAddress: { ...o.shipTo }, deliveredAt: o.shipment?.deliveredAt, lastScan: o.shipment?.lastScan };
       message = "Label now goes to the address on the PayPal transaction.";
     } else if (action === "require_signature") {
       if (o.shipment) o.shipment.signatureRequired = true;
-      else o.shipment = { carrier: (body.carrier as any) ?? "UPS", trackingNumber: body.trackingNumber ?? "", signatureRequired: true, shippedAt: "", labelAddress: { ...o.shipTo } };
+      else o.shipment = { carrier: body.carrier ?? "UPS", trackingNumber: body.trackingNumber ?? "", signatureRequired: true, shippedAt: "", labelAddress: { ...o.shipTo } };
       message = "Signature confirmation added to the label.";
     } else if (action === "use_tracked_carrier") {
-      if (o.shipment) o.shipment.carrier = (body.carrier as any) ?? (o.shipTo.country === "US" ? "USPS" : "DHL");
+      if (o.shipment) o.shipment.carrier = body.carrier ?? (o.shipTo.country === "US" ? "USPS" : "DHL");
       message = "Switched to a tracked service with a delivery scan.";
     } else if (action === "ship_now") {
       const label = o.shipment?.labelAddress ?? { ...o.shipTo };
       const trackingNumber = body.trackingNumber || o.shipment?.trackingNumber || (o.sandboxBacked ? `TRACK-${Date.now().toString().slice(-8)}` : `9400${Date.now().toString().slice(-12)}`);
       o.shipment = {
-        carrier: (body.carrier as any) || (o.shipment?.carrier && o.shipment.carrier !== "OTHER" ? o.shipment.carrier : "USPS"),
+        carrier: body.carrier || (o.shipment?.carrier && o.shipment.carrier !== "OTHER" ? o.shipment.carrier : "USPS"),
         trackingNumber,
         labelAddress: label,
         signatureRequired: o.shipment?.signatureRequired ?? false,
